@@ -1,4 +1,4 @@
-module lywsd03mmc-active-connect-exporter
+module lywsd03mmc-prom-expo
 
 go 1.23.5
 
