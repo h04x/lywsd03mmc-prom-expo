@@ -20,25 +20,25 @@ type Poller struct {
 // 0971 -> 2417 -> 24.17°C temp
 // 1d           -> 29% humidity
 // 0b11 -> 2833 -> 2.833V battery voltage
-func (p *Poller) parse(b []byte) (temp float32, humidity uint8, voltage float32, err error) {
+func (p *Poller) parse(b []byte) (temp float64, humidity uint8, voltage float64, err error) {
 	if len(b) != 5 {
 		return 0, 0, 0, fmt.Errorf("len(rawBytes) %v != 5", len(b))
 	}
 	tmp := binary.LittleEndian.Uint16(b[:2])
-	temp = float32(tmp) / 100
+	temp = float64(tmp) / 100
 
 	humidity = b[2]
 
 	tmp2 := binary.LittleEndian.Uint16(b[3:5])
-	voltage = float32(tmp2) / 1000
+	voltage = float64(tmp2) / 1000
 
 	return temp, humidity, voltage, nil
 }
 
 // this method is not thread safe
 // coz adapter shared and adapter.scan() restrictions
-func (p *Poller) Poll() (temp float32, humidity uint8, vlotage float32, err error) {
-	easyerr := func(e error) (float32, uint8, float32, error) {
+func (p *Poller) Poll() (temp float64, humidity uint8, vlotage float64, err error) {
+	easyerr := func(e error) (float64, uint8, float64, error) {
 		return 0, 0, 0, e
 	}
 
@@ -126,6 +126,10 @@ func (p *Poller) Poll() (temp float32, humidity uint8, vlotage float32, err erro
 	//err = dev.Disconnect()
 
 	return p.parse(rawBytes)
+}
+
+func (p *Poller) Mac() string {
+	return p.devMAC
 }
 
 func NewDevicePoller(devMAC string, scanTimeoutSec uint) *Poller {
