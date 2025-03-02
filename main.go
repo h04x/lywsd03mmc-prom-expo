@@ -13,7 +13,7 @@ import (
 )
 
 const scanTimeoutSec = 10
-const pollPeriodMin = 15
+const pollPeriodMin = 10
 
 var addr = flag.String("listen-address", "127.0.0.1:8080", "The address to listen on for HTTP requests.")
 

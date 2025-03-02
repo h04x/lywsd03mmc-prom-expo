@@ -38,9 +38,12 @@ func (c *SensorCollector) Describe(ch chan<- *prometheus.Desc) {
 func (c *SensorCollector) Collect(ch chan<- prometheus.Metric) {
 	c.m.Lock()
 	for mac, data := range c.sensorsData {
-		m1 := prometheus.NewMetricWithTimestamp(data.updated, prometheus.MustNewConstMetric(c.tempMetricDesc, prometheus.GaugeValue, data.temp, mac))
-		m2 := prometheus.NewMetricWithTimestamp(data.updated, prometheus.MustNewConstMetric(c.humidityMetricDesc, prometheus.GaugeValue, float64(data.humidity), mac))
-		m3 := prometheus.NewMetricWithTimestamp(data.updated, prometheus.MustNewConstMetric(c.batteryMetricDesc, prometheus.GaugeValue, data.battery, mac))
+		m1 := prometheus.NewMetricWithTimestamp(data.updated,
+			prometheus.MustNewConstMetric(c.tempMetricDesc, prometheus.GaugeValue, data.temp, mac))
+		m2 := prometheus.NewMetricWithTimestamp(data.updated,
+			prometheus.MustNewConstMetric(c.humidityMetricDesc, prometheus.GaugeValue, float64(data.humidity), mac))
+		m3 := prometheus.NewMetricWithTimestamp(data.updated,
+			prometheus.MustNewConstMetric(c.batteryMetricDesc, prometheus.GaugeValue, data.battery, mac))
 		ch <- m1
 		ch <- m2
 		ch <- m3
