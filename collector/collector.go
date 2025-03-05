@@ -1,7 +1,7 @@
 package collector
 
 import (
-	"sync"
+	"log"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -14,19 +14,16 @@ type SensorData struct {
 	battery  float64
 }
 
+type Poller interface {
+	Poll() (temp float64, humidity uint8, vlotage float64, err error)
+	Mac() string
+}
+
 type SensorCollector struct {
 	tempMetricDesc     *prometheus.Desc
 	humidityMetricDesc *prometheus.Desc
 	batteryMetricDesc  *prometheus.Desc
-	m                  sync.Mutex
-	sensorsData        map[string]SensorData
-}
-
-func (c *SensorCollector) UpdateSensorData(mac string, temp float64, humidity uint, battery float64) {
-	updated := time.Now()
-	c.m.Lock()
-	c.sensorsData[mac] = SensorData{updated, temp, humidity, battery}
-	c.m.Unlock()
+	pollers            []Poller
 }
 
 func (c *SensorCollector) Describe(ch chan<- *prometheus.Desc) {
@@ -36,22 +33,28 @@ func (c *SensorCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *SensorCollector) Collect(ch chan<- prometheus.Metric) {
-	c.m.Lock()
-	for mac, data := range c.sensorsData {
-		m1 := prometheus.NewMetricWithTimestamp(data.updated,
-			prometheus.MustNewConstMetric(c.tempMetricDesc, prometheus.GaugeValue, data.temp, mac))
-		m2 := prometheus.NewMetricWithTimestamp(data.updated,
-			prometheus.MustNewConstMetric(c.humidityMetricDesc, prometheus.GaugeValue, float64(data.humidity), mac))
-		m3 := prometheus.NewMetricWithTimestamp(data.updated,
-			prometheus.MustNewConstMetric(c.batteryMetricDesc, prometheus.GaugeValue, data.battery, mac))
+	for _, p := range c.pollers {
+		temp, humidity, battery, err := p.Poll()
+		if err != nil {
+			log.Println(err.Error())
+			continue
+		}
+
+		m1 := prometheus.MustNewConstMetric(c.tempMetricDesc,
+			prometheus.GaugeValue, temp, p.Mac())
+		m2 := prometheus.MustNewConstMetric(c.humidityMetricDesc,
+			prometheus.GaugeValue, float64(humidity), p.Mac())
+		m3 := prometheus.MustNewConstMetric(c.batteryMetricDesc,
+			prometheus.GaugeValue, battery, p.Mac())
+
 		ch <- m1
 		ch <- m2
 		ch <- m3
 	}
-	c.m.Unlock()
+
 }
 
-func NewSensorCollector() *SensorCollector {
+func NewSensorCollector(pollers []Poller) *SensorCollector {
 	return &SensorCollector{
 		tempMetricDesc: prometheus.NewDesc(
 			"sensor_temp_celsius",
@@ -71,6 +74,6 @@ func NewSensorCollector() *SensorCollector {
 			[]string{"mac"},
 			nil,
 		),
-		sensorsData: make(map[string]SensorData),
+		pollers: pollers,
 	}
 }
