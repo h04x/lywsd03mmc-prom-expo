@@ -1,29 +1,26 @@
 package collector
 
 import (
-	"log"
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"log"
 )
 
-type SensorData struct {
-	updated  time.Time
-	temp     float64
-	humidity uint
-	battery  float64
+type PollResult struct {
+	MAC      string
+	Temp     float64
+	Humidity float64
+	Voltage  float64
 }
 
 type Poller interface {
-	Poll() (temp float64, humidity uint8, vlotage float64, err error)
-	Mac() string
+	Poll() ([]PollResult, error)
 }
 
 type SensorCollector struct {
 	tempMetricDesc     *prometheus.Desc
 	humidityMetricDesc *prometheus.Desc
 	batteryMetricDesc  *prometheus.Desc
-	pollers            []Poller
+	poller             Poller
 }
 
 func (c *SensorCollector) Describe(ch chan<- *prometheus.Desc) {
@@ -33,28 +30,26 @@ func (c *SensorCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *SensorCollector) Collect(ch chan<- prometheus.Metric) {
-	for _, p := range c.pollers {
-		temp, humidity, battery, err := p.Poll()
-		if err != nil {
-			log.Println(err.Error())
-			continue
-		}
+	scanResult, err := c.poller.Poll()
+	if err != nil {
+		log.Println(err.Error())
+		return
+	}
 
+	for _, v := range scanResult {
 		m1 := prometheus.MustNewConstMetric(c.tempMetricDesc,
-			prometheus.GaugeValue, temp, p.Mac())
+			prometheus.GaugeValue, v.Temp, v.MAC)
 		m2 := prometheus.MustNewConstMetric(c.humidityMetricDesc,
-			prometheus.GaugeValue, float64(humidity), p.Mac())
+			prometheus.GaugeValue, float64(v.Humidity), v.MAC)
 		m3 := prometheus.MustNewConstMetric(c.batteryMetricDesc,
-			prometheus.GaugeValue, battery, p.Mac())
-
+			prometheus.GaugeValue, v.Voltage, v.MAC)
 		ch <- m1
 		ch <- m2
 		ch <- m3
 	}
-
 }
 
-func NewSensorCollector(pollers []Poller) *SensorCollector {
+func NewSensorCollector(poller Poller) *SensorCollector {
 	return &SensorCollector{
 		tempMetricDesc: prometheus.NewDesc(
 			"sensor_temp_celsius",
@@ -74,6 +69,6 @@ func NewSensorCollector(pollers []Poller) *SensorCollector {
 			[]string{"mac"},
 			nil,
 		),
-		pollers: pollers,
+		poller: poller,
 	}
 }

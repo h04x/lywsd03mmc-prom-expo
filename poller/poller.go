@@ -1,137 +1,136 @@
 package poller
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log"
+	"lywsd03mmc-prom-expo-adv/collector"
 	"time"
-
 	"tinygo.org/x/bluetooth"
 )
 
 type Poller struct {
-	char           *bluetooth.DeviceCharacteristic
-	devMAC         string
+	adapter        *bluetooth.Adapter
+	devicesMAC     []string
 	scanTimeoutSec uint
 }
 
-// char data must be 5 bytes
-// for example 71 09 1d 11 0b
-// 0971 -> 2417 -> 24.17°C temp
-// 1d           -> 29% humidity
-// 0b11 -> 2833 -> 2.833V battery voltage
-func (p *Poller) parse(b []byte) (temp float64, humidity uint8, voltage float64, err error) {
-	if len(b) != 5 {
-		return 0, 0, 0, fmt.Errorf("len(rawBytes) %v != 5", len(b))
+var ErrDataParseErr = errors.New("Err while parsing payload")
+var ErrWrongUUID = errors.New("Wrong UUID")
+var ErrShortLen = errors.New("data len too short")
+var ErrMismatchMAC = errors.New("Mismatch MAC")
+
+// https://github.com/pvvx/ATC_MiThermometer?tab=readme-ov-file#custom-format-all-data-little-endian
+func parseCustomPVVX(MustMAC [6]byte, UUID string, b []byte) (temp float64, humidity float64, voltage float64, err error) {
+	if UUID != "0000181a-0000-1000-8000-00805f9b34fb" {
+		return 0, 0, 0, ErrWrongUUID
 	}
-	tmp := binary.LittleEndian.Uint16(b[:2])
+
+	if len(b) < 14 {
+		return 0, 0, 0, fmt.Errorf("%w: data too short", ErrDataParseErr)
+	}
+
+	if bytes.Compare(b[:6], MustMAC[:]) != 0 {
+		return 0, 0, 0, fmt.Errorf("%w: Mismatch MAC", ErrDataParseErr)
+	}
+
+	tmp := binary.LittleEndian.Uint16(b[6:8])
 	temp = float64(tmp) / 100
 
-	humidity = b[2]
+	tmp = binary.LittleEndian.Uint16(b[8:10])
+	humidity = float64(tmp) / 100
 
-	tmp2 := binary.LittleEndian.Uint16(b[3:5])
-	voltage = float64(tmp2) / 1000
+	tmp = binary.LittleEndian.Uint16(b[10:12])
+	voltage = float64(tmp) / 1000
 
 	return temp, humidity, voltage, nil
 }
 
-// this method is not thread safe
-// coz adapter shared and adapter.scan() restrictions
-func (p *Poller) Poll() (temp float64, humidity uint8, vlotage float64, err error) {
-	easyerr := func(e error) (float64, uint8, float64, error) {
-		return 0, 0, 0, e
+func (p *Poller) Poll() ([]collector.PollResult, error) {
+	waitList := make(map[string]interface{})
+	for _, v := range p.devicesMAC {
+		waitList[v] = nil
 	}
+	scanResults := make([]collector.PollResult, 0, len(p.devicesMAC))
 
-	if p.char == nil {
-		var adapter = bluetooth.DefaultAdapter
-		err := adapter.Enable()
-		if err != nil {
-			return easyerr(err)
-		}
+	succsessChan := make(chan interface{}, 1)
+	scanCallErrChan := make(chan error, 1)
+	timer := time.NewTimer(time.Second * time.Duration(p.scanTimeoutSec))
 
-		succsessChan := make(chan bluetooth.ScanResult, 1)
-		scanCallErrChan := make(chan error, 1)
-		timer := time.NewTimer(time.Second * time.Duration(p.scanTimeoutSec))
+	go func() {
+		err := p.adapter.Scan(func(adapter *bluetooth.Adapter, result bluetooth.ScanResult) {
+			scannedMAC := result.Address.String()
 
-		go func() {
-			err := adapter.Scan(func(adapter *bluetooth.Adapter, result bluetooth.ScanResult) {
-				if result.Address.String() == p.devMAC {
-					succsessChan <- result
+			_, ok := waitList[scannedMAC]
+			// if this MAC into waiting list
+			if ok {
+				sd := result.AdvertisementPayload.ServiceData()
+				if sd == nil || len(sd) == 0 {
+					log.Println(scannedMAC, "empty AdvertisementPayload.ServiceData()")
+					return
 				}
-			})
-			if err != nil {
-				scanCallErrChan <- err
+
+				for _, v := range sd {
+					temp, humidity, voltage, err := parseCustomPVVX(
+						result.Address.MACAddress.MAC, v.UUID.String(), v.Data)
+					if err != nil {
+						// log parse errors
+						// ignore uuid errors
+						if errors.Is(err, ErrDataParseErr) {
+							log.Println(scannedMAC, err.Error())
+						}
+						continue
+					}
+					scanResults = append(scanResults,
+						collector.PollResult{
+							MAC:      scannedMAC,
+							Temp:     temp,
+							Humidity: humidity,
+							Voltage:  voltage,
+						})
+
+					// no wait it anymore
+					delete(waitList, scannedMAC)
+					break
+				}
+				if len(waitList) == 0 {
+					succsessChan <- nil
+				}
 			}
-		}()
+		})
 
-		// waiting what happens first of three:
-		// timeout
-		// scan() call return error
-		// scan() call succsess
-		var result bluetooth.ScanResult
-		select {
-		case <-timer.C:
-			adapter.StopScan()
-			return easyerr(errors.New("scan timeout"))
-		case e := <-scanCallErrChan:
-			timer.Stop()
-			return easyerr(e)
-		case result = <-succsessChan:
-			timer.Stop()
-			adapter.StopScan()
-		}
-
-		dev, err := adapter.Connect(result.Address, bluetooth.ConnectionParams{})
 		if err != nil {
-			fmt.Println("connect err:", err.Error())
-			return easyerr(err)
+			scanCallErrChan <- err
 		}
+	}()
 
-		// ebe0ccb0-7a0a-4b0c-8a1a-6ff2997da3a6
-		service, err := dev.DiscoverServices([]bluetooth.UUID{bluetooth.NewUUID([16]byte{
-			0xeb, 0xe0, 0xcc, 0xb0, 0x7a, 0x0a, 0x4b, 0x0c,
-			0x8a, 0x1a, 0x6f, 0xf2, 0x99, 0x7d, 0xa3, 0xa6,
-		})})
-		if err != nil {
-			return easyerr(err)
-		}
-		if len(service) < 1 {
-			return easyerr(errors.New("dev.DiscoverService() return empty array"))
-		}
-
-		// ebe0ccc1-7a0a-4b0c-8a1a-6ff2997da3a6
-		char, err := service[0].DiscoverCharacteristics([]bluetooth.UUID{bluetooth.NewUUID([16]byte{
-			0xeb, 0xe0, 0xcc, 0xc1, 0x7a, 0x0a, 0x4b, 0x0c,
-			0x8a, 0x1a, 0x6f, 0xf2, 0x99, 0x7d, 0xa3, 0xa6})})
-		if err != nil {
-			return easyerr(err)
-		}
-		if len(char) < 1 {
-			return easyerr(errors.New("service.DiscoverCharacteristics() return empty array"))
-		}
-
-		p.char = &char[0]
+	// waiting what happens first of three:
+	// timeout
+	// scan() call return error
+	// scan() call succsess
+	select {
+	case <-timer.C:
+		p.adapter.StopScan()
+		log.Println(errors.New("scan timeout"))
+		return scanResults, nil
+	case e := <-scanCallErrChan:
+		timer.Stop()
+		return nil, e
+	case <-succsessChan:
+		timer.Stop()
+		p.adapter.StopScan()
+		return scanResults, nil
 	}
+}
 
-	rawBytes := make([]byte, 5)
-	_, err = p.char.Read(rawBytes)
+func NewDevicePoller(scanTimeoutSec uint, devicesMAC []string) (*Poller, error) {
+	var adapter = bluetooth.DefaultAdapter
+	err := adapter.Enable()
 	if err != nil {
-		// clear char to force scan() and discovery() on next poll
-		p.char = nil
-		return easyerr(err)
+		return nil, err
 	}
 
-	// if no call disconnect() we can avoid scan() and discovery() on next poll
-	//p.char = nil
-	//err = dev.Disconnect()
-
-	return p.parse(rawBytes)
-}
-
-func (p *Poller) Mac() string {
-	return p.devMAC
-}
-
-func NewDevicePoller(devMAC string, scanTimeoutSec uint) *Poller {
-	return &Poller{devMAC: devMAC, scanTimeoutSec: scanTimeoutSec}
+	return &Poller{adapter, devicesMAC, scanTimeoutSec}, nil
 }

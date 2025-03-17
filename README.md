@@ -1,2 +1,4 @@
 # lywsd03mmc-prom-expo
-use active connection, drain a lot of battery
+
+lywsd03mmc temp, humidity, voltage prometheus exporter  
+Use it for https://github.com/pvvx/ATC_MiThermometer firmware. Custom advertisement format  
