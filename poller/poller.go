@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"lywsd03mmc-prom-expo-adv/collector"
+	"lywsd03mmc-prom-expo/collector"
 	"time"
 	"tinygo.org/x/bluetooth"
 )
