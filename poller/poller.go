@@ -17,23 +17,25 @@ type Poller struct {
 	scanTimeoutSec uint
 }
 
-var ErrDataParseErr = errors.New("Err while parsing payload")
-var ErrWrongUUID = errors.New("Wrong UUID")
-var ErrShortLen = errors.New("data len too short")
-var ErrMismatchMAC = errors.New("Mismatch MAC")
+const expectedUUID string = "0000181a-0000-1000-8000-00805f9b34fb"
+
+var ErrMismatchUUID = fmt.Errorf("Mismatch UUID")
 
 // https://github.com/pvvx/ATC_MiThermometer?tab=readme-ov-file#custom-format-all-data-little-endian
-func parseCustomPVVX(MustMAC [6]byte, UUID string, b []byte) (temp float64, humidity float64, voltage float64, err error) {
-	if UUID != "0000181a-0000-1000-8000-00805f9b34fb" {
-		return 0, 0, 0, ErrWrongUUID
+func parseCustomPVVX(expectedMAC [6]byte, advertisedUUID string, b []byte) (temp float64, humidity float64, voltage float64, err error) {
+	if advertisedUUID != expectedUUID {
+		return 0, 0, 0, fmt.Errorf("%w: expected %v != adverised %v",
+			ErrMismatchUUID, expectedUUID, advertisedUUID)
 	}
 
 	if len(b) < 14 {
-		return 0, 0, 0, fmt.Errorf("%w: data too short", ErrDataParseErr)
+		return 0, 0, 0, errors.New("advertised bytes len < 14")
 	}
 
-	if bytes.Compare(b[:6], MustMAC[:]) != 0 {
-		return 0, 0, 0, fmt.Errorf("%w: Mismatch MAC", ErrDataParseErr)
+	advertisedMAC := b[:6]
+	if bytes.Compare(advertisedMAC, expectedMAC[:]) != 0 {
+		return 0, 0, 0, fmt.Errorf("In advertised bytes ExpectedMAC(% x) != AdvertisedMac(% x)",
+			expectedMAC, advertisedMAC)
 	}
 
 	tmp := binary.LittleEndian.Uint16(b[6:8])
@@ -49,13 +51,13 @@ func parseCustomPVVX(MustMAC [6]byte, UUID string, b []byte) (temp float64, humi
 }
 
 func (p *Poller) Poll() ([]collector.PollResult, error) {
-	waitList := make(map[string]interface{})
+	pendingDevices := make(map[string]interface{})
 	for _, v := range p.devicesMAC {
-		waitList[v] = nil
+		pendingDevices[v] = nil
 	}
 	scanResults := make([]collector.PollResult, 0, len(p.devicesMAC))
 
-	succsessChan := make(chan interface{}, 1)
+	successChan := make(chan interface{}, 1)
 	scanCallErrChan := make(chan error, 1)
 	timer := time.NewTimer(time.Second * time.Duration(p.scanTimeoutSec))
 
@@ -63,7 +65,7 @@ func (p *Poller) Poll() ([]collector.PollResult, error) {
 		err := p.adapter.Scan(func(adapter *bluetooth.Adapter, result bluetooth.ScanResult) {
 			scannedMAC := result.Address.String()
 
-			_, ok := waitList[scannedMAC]
+			_, ok := pendingDevices[scannedMAC]
 			// if this MAC into waiting list
 			if ok {
 				sd := result.AdvertisementPayload.ServiceData()
@@ -74,13 +76,9 @@ func (p *Poller) Poll() ([]collector.PollResult, error) {
 
 				for _, v := range sd {
 					temp, humidity, voltage, err := parseCustomPVVX(
-						result.Address.MACAddress.MAC, v.UUID.String(), v.Data)
+						result.Address.MAC, v.UUID.String(), v.Data)
 					if err != nil {
-						// log parse errors
-						// ignore uuid errors
-						if errors.Is(err, ErrDataParseErr) {
-							log.Println(scannedMAC, err.Error())
-						}
+						log.Println(scannedMAC, err.Error())
 						continue
 					}
 					scanResults = append(scanResults,
@@ -92,11 +90,11 @@ func (p *Poller) Poll() ([]collector.PollResult, error) {
 						})
 
 					// no wait it anymore
-					delete(waitList, scannedMAC)
+					delete(pendingDevices, scannedMAC)
 					break
 				}
-				if len(waitList) == 0 {
-					succsessChan <- nil
+				if len(pendingDevices) == 0 {
+					successChan <- nil
 				}
 			}
 		})
@@ -118,7 +116,7 @@ func (p *Poller) Poll() ([]collector.PollResult, error) {
 	case e := <-scanCallErrChan:
 		timer.Stop()
 		return nil, e
-	case <-succsessChan:
+	case <-successChan:
 		timer.Stop()
 		p.adapter.StopScan()
 		return scanResults, nil
