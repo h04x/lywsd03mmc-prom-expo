@@ -11,15 +11,21 @@ import (
 	"tinygo.org/x/bluetooth"
 )
 
+type sixBytes = [6]byte
+
+type MACAddr interface {
+	BytesLE() sixBytes
+}
+
 type Poller struct {
 	adapter        *bluetooth.Adapter
-	devicesMAC     []string
+	devicesMAC     []sixBytes
 	scanTimeoutSec uint
 }
 
 const expectedUUID string = "0000181a-0000-1000-8000-00805f9b34fb"
 
-var ErrMismatchUUID = fmt.Errorf("Mismatch UUID")
+var ErrMismatchUUID = fmt.Errorf("mismatch UUID")
 
 // https://github.com/pvvx/ATC_MiThermometer?tab=readme-ov-file#custom-format-all-data-little-endian
 func parseCustomPVVX(expectedMAC [6]byte, advertisedUUID string, b []byte) (temp float64, humidity float64, voltage float64, err error) {
@@ -34,7 +40,7 @@ func parseCustomPVVX(expectedMAC [6]byte, advertisedUUID string, b []byte) (temp
 
 	advertisedMAC := b[:6]
 	if bytes.Compare(advertisedMAC, expectedMAC[:]) != 0 {
-		return 0, 0, 0, fmt.Errorf("In advertised bytes ExpectedMAC(% x) != AdvertisedMac(% x)",
+		return 0, 0, 0, fmt.Errorf("in advertised bytes ExpectedMAC(% x) != AdvertisedMac(% x)",
 			expectedMAC, advertisedMAC)
 	}
 
@@ -51,7 +57,7 @@ func parseCustomPVVX(expectedMAC [6]byte, advertisedUUID string, b []byte) (temp
 }
 
 func (p *Poller) Poll() ([]collector.PollResult, error) {
-	pendingDevices := make(map[string]interface{})
+	pendingDevices := make(map[sixBytes]interface{})
 	for _, v := range p.devicesMAC {
 		pendingDevices[v] = nil
 	}
@@ -63,8 +69,7 @@ func (p *Poller) Poll() ([]collector.PollResult, error) {
 
 	go func() {
 		err := p.adapter.Scan(func(adapter *bluetooth.Adapter, result bluetooth.ScanResult) {
-			scannedMAC := result.Address.String()
-
+			scannedMAC := result.Address.MAC
 			_, ok := pendingDevices[scannedMAC]
 			// if this MAC into waiting list
 			if ok {
@@ -76,14 +81,14 @@ func (p *Poller) Poll() ([]collector.PollResult, error) {
 
 				for _, v := range sd {
 					temp, humidity, voltage, err := parseCustomPVVX(
-						result.Address.MAC, v.UUID.String(), v.Data)
+						scannedMAC, v.UUID.String(), v.Data)
 					if err != nil {
 						log.Println(scannedMAC, err.Error())
 						continue
 					}
 					scanResults = append(scanResults,
 						collector.PollResult{
-							MAC:      scannedMAC,
+							MAC:      result.Address.String(),
 							Temp:     temp,
 							Humidity: humidity,
 							Voltage:  voltage,
@@ -93,12 +98,11 @@ func (p *Poller) Poll() ([]collector.PollResult, error) {
 					delete(pendingDevices, scannedMAC)
 					break
 				}
-				if len(pendingDevices) == 0 {
-					successChan <- nil
-				}
+			}
+			if len(pendingDevices) == 0 {
+				successChan <- nil
 			}
 		})
-
 		if err != nil {
 			scanCallErrChan <- err
 		}
@@ -123,12 +127,18 @@ func (p *Poller) Poll() ([]collector.PollResult, error) {
 	}
 }
 
-func NewDevicePoller(scanTimeoutSec uint, devicesMAC []string) (*Poller, error) {
+func NewPoller(scanTimeoutSec uint) (*Poller, error) {
 	var adapter = bluetooth.DefaultAdapter
 	err := adapter.Enable()
 	if err != nil {
 		return nil, err
 	}
 
-	return &Poller{adapter, devicesMAC, scanTimeoutSec}, nil
+	devices := []sixBytes{}
+	return &Poller{adapter, devices, scanTimeoutSec}, nil
+
+}
+
+func (p *Poller) NewDevice(device MACAddr) {
+	p.devicesMAC = append(p.devicesMAC, device.BytesLE())
 }

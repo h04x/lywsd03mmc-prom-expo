@@ -1,8 +1,9 @@
 module lywsd03mmc-prom-expo
 
-go 1.23.5
+go 1.21
 
 require (
+	github.com/jessevdk/go-flags v1.6.1
 	github.com/prometheus/client_golang v1.21.0
 	tinygo.org/x/bluetooth v0.11.0
 )
