@@ -1,0 +1,14 @@
+[Unit]
+Description=LYWSD03MMC thermometer prometheus exporter
+After=bluetooth.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/lywsd03mmc-prom-expo
+User=nobody
+ExecStart=/usr/local/bin/lywsd03mmc-prom-expo $ARG
+ProtectSystem=full
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
