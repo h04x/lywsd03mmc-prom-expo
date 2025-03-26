@@ -5,7 +5,7 @@ After=bluetooth.service
 [Service]
 Type=simple
 EnvironmentFile=/etc/default/lywsd03mmc-prom-expo
-User=nobody
+DynamicUser=yes
 ExecStart=/usr/local/bin/lywsd03mmc-prom-expo $ARG
 ProtectSystem=full
 Restart=on-failure
