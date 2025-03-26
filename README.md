@@ -19,9 +19,9 @@ Enable and start service
 systemctl enable lywsd03mmc-prom-expo
 systemctl start lywsd03mmc-prom-expo
 ```
-Checking logs  
+Checking status  
 ```
-journalctl -n 100 -u lywsd03mmc-prom-expo
+systemctl status lywsd03mmc-prom-expo
 ```
 
 
