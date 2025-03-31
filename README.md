@@ -9,17 +9,17 @@ Build and copy config files, run
 ```
 sudo make install
 ```  
-Edit config file  
+Edit config file 
 ```
-/etc/default/lywsd03mmc-prom-expo
-```  
+nano /etc/default/lywsd03mmc-prom-expo
+```
 
 Enable and start service  
 ```
 systemctl enable lywsd03mmc-prom-expo
 systemctl start lywsd03mmc-prom-expo
 ```
-Checking status  
+Check status  
 ```
 systemctl status lywsd03mmc-prom-expo
 ```
