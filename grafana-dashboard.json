@@ -327,8 +327,8 @@
       "list": [
         {
           "current": {
-            "text": "lywsd03mmc-prom-expo-1",
-            "value": "lywsd03mmc-prom-expo-1"
+            "text": "lywsd03mmc-prom-expo",
+            "value": "lywsd03mmc-prom-expo"
           },
           "definition": "label_values(job)",
           "description": "",
