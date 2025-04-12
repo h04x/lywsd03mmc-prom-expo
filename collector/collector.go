@@ -1,15 +1,18 @@
 package collector
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
 	"log"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type PollResult struct {
-	MAC      string
-	Temp     float64
-	Humidity float64
-	Voltage  float64
+	MAC       string
+	Temp      float64
+	Humidity  float64
+	Voltage   float64
+	Timestamp time.Time
 }
 
 type Poller interface {
@@ -37,12 +40,12 @@ func (c *SensorCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	for _, v := range scanResult {
-		m1 := prometheus.MustNewConstMetric(c.tempMetricDesc,
-			prometheus.GaugeValue, v.Temp, v.MAC)
-		m2 := prometheus.MustNewConstMetric(c.humidityMetricDesc,
-			prometheus.GaugeValue, float64(v.Humidity), v.MAC)
-		m3 := prometheus.MustNewConstMetric(c.batteryMetricDesc,
-			prometheus.GaugeValue, v.Voltage, v.MAC)
+		m1 := prometheus.NewMetricWithTimestamp(v.Timestamp, prometheus.MustNewConstMetric(c.tempMetricDesc,
+			prometheus.GaugeValue, v.Temp, v.MAC))
+		m2 := prometheus.NewMetricWithTimestamp(v.Timestamp, prometheus.MustNewConstMetric(c.humidityMetricDesc,
+			prometheus.GaugeValue, float64(v.Humidity), v.MAC))
+		m3 := prometheus.NewMetricWithTimestamp(v.Timestamp, prometheus.MustNewConstMetric(c.batteryMetricDesc,
+			prometheus.GaugeValue, v.Voltage, v.MAC))
 		ch <- m1
 		ch <- m2
 		ch <- m3

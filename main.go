@@ -7,7 +7,7 @@ import (
 	"net"
 
 	"lywsd03mmc-prom-expo/collector"
-	"lywsd03mmc-prom-expo/poller"
+	"lywsd03mmc-prom-expo/pollers/poller_on_demand"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -62,7 +62,7 @@ func main() {
 		return
 	}
 
-	p, err := poller.NewPoller(opt.ScanTimeoutSec)
+	p, err := pollerOnDemand.New(opt.ScanTimeoutSec)
 	if err != nil {
 		fmt.Println(err.Error())
 	}

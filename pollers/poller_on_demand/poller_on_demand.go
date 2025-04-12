@@ -1,4 +1,4 @@
-package poller
+package pollerOnDemand
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"log"
 	"lywsd03mmc-prom-expo/collector"
 	"time"
+
 	"tinygo.org/x/bluetooth"
 )
 
@@ -17,7 +18,7 @@ type MACAddr interface {
 	BytesLE() sixBytes
 }
 
-type Poller struct {
+type PollerOnDemand struct {
 	adapter        *bluetooth.Adapter
 	devicesMAC     []sixBytes
 	scanTimeoutSec uint
@@ -56,7 +57,7 @@ func parseCustomPVVX(expectedMAC [6]byte, advertisedUUID string, b []byte) (temp
 	return temp, humidity, voltage, nil
 }
 
-func (p *Poller) Poll() ([]collector.PollResult, error) {
+func (p *PollerOnDemand) Poll() ([]collector.PollResult, error) {
 	pendingDevices := make(map[sixBytes]interface{})
 	for _, v := range p.devicesMAC {
 		pendingDevices[v] = nil
@@ -88,10 +89,11 @@ func (p *Poller) Poll() ([]collector.PollResult, error) {
 					}
 					scanResults = append(scanResults,
 						collector.PollResult{
-							MAC:      result.Address.String(),
-							Temp:     temp,
-							Humidity: humidity,
-							Voltage:  voltage,
+							MAC:       result.Address.String(),
+							Temp:      temp,
+							Humidity:  humidity,
+							Voltage:   voltage,
+							Timestamp: time.Now(),
 						})
 
 					// no wait it anymore
@@ -127,7 +129,7 @@ func (p *Poller) Poll() ([]collector.PollResult, error) {
 	}
 }
 
-func NewPoller(scanTimeoutSec uint) (*Poller, error) {
+func New(scanTimeoutSec uint) (*PollerOnDemand, error) {
 	var adapter = bluetooth.DefaultAdapter
 	err := adapter.Enable()
 	if err != nil {
@@ -135,10 +137,10 @@ func NewPoller(scanTimeoutSec uint) (*Poller, error) {
 	}
 
 	devices := []sixBytes{}
-	return &Poller{adapter, devices, scanTimeoutSec}, nil
+	return &PollerOnDemand{adapter, devices, scanTimeoutSec}, nil
 
 }
 
-func (p *Poller) NewDevice(device MACAddr) {
+func (p *PollerOnDemand) NewDevice(device MACAddr) {
 	p.devicesMAC = append(p.devicesMAC, device.BytesLE())
 }
