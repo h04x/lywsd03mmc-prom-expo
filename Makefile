@@ -6,7 +6,7 @@ run: build
 
 install: build
 	cp lywsd03mmc-prom-expo /usr/local/bin/
-	cp lywsd03mmc-prom-expo.service /etc/systemd/system/
+	cp --update lywsd03mmc-prom-expo.service /etc/systemd/system/
 	cp --update lywsd03mmc-prom-expo.env /etc/default/lywsd03mmc-prom-expo
 
 clean:

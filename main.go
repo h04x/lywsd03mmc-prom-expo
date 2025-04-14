@@ -7,7 +7,7 @@ import (
 	"net"
 
 	"lywsd03mmc-prom-expo/collector"
-	"lywsd03mmc-prom-expo/pollers/poller_on_demand"
+	"lywsd03mmc-prom-expo/pollers/poller_continuous"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -62,7 +62,7 @@ func main() {
 		return
 	}
 
-	p, err := pollerOnDemand.New(opt.ScanTimeoutSec)
+	p, err := pollerContinuous.New(opt.ScanTimeoutSec)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -70,6 +70,8 @@ func main() {
 	for _, d := range opt.Devices {
 		p.NewDevice(d)
 	}
+
+	go p.Scan()
 
 	c := collector.NewSensorCollector(p)
 
