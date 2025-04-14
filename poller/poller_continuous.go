@@ -20,6 +20,8 @@ type PollerContinuous struct {
 	scanRestartDelay time.Duration
 }
 
+// Continuous Scan() advertisements.
+// If no new received data in "scanTimeout" try to restart Scan() in "scanRestartDelay"
 func NewContinuousPoller(scanTimeout time.Duration, scanRestartDelay time.Duration) (*PollerContinuous, error) {
 	var adapter = bluetooth.DefaultAdapter
 	err := adapter.Enable()
@@ -63,6 +65,7 @@ func (p *PollerContinuous) Scan() {
 			p.devicesMutex.Lock()
 			_, ok := p.devices[scannedMAC]
 			p.devicesMutex.Unlock()
+
 			// if this MAC into waiting list
 			if ok {
 				sd := result.AdvertisementPayload.ServiceData()

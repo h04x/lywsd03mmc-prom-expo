@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"time"
@@ -47,10 +48,30 @@ func (m MAC) BytesLE() [6]byte {
 	return b
 }
 
+type MyDuration time.Duration
+
+func (md *MyDuration) UnmarshalFlag(value string) error {
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return err
+	}
+
+	*md = MyDuration(d)
+	return nil
+}
+
+func (md MyDuration) MarshalFlag() (string, error) {
+	return fmt.Sprintf("%v", md), nil
+}
+
+func (md MyDuration) Duration() time.Duration {
+	return time.Duration(md)
+}
+
 type Options struct {
-	ListenAddress string `long:"listen-address" default:"127.0.0.1:8080" description:"The address to listen on for HTTP requests."`
-	ScanTimeout   string `long:"bt-scan-timeout" default:"31s" description:"Bluetooth scan timeout (e.g 31s, 1h, 8m)"`
-	Devices       []MAC  `long:"dev" required:"true" description:"Bluetooth device MAC address to poll. Repeatable (e.g. AA:BB:CC:DD:EE:FF)"`
+	ListenAddress string     `long:"listen-address" default:"127.0.0.1:8080" description:"The address to listen on for HTTP requests."`
+	ScanTimeout   MyDuration `long:"bt-scan-timeout" default:"31s" description:"Bluetooth scan timeout (e.g 31s, 1h, 8m)"`
+	Devices       []MAC      `long:"dev" required:"true" description:"Bluetooth device MAC address to poll. Repeatable (e.g. AA:BB:CC:DD:EE:FF)"`
 }
 
 var opt Options
@@ -62,12 +83,7 @@ func main() {
 		return
 	}
 
-	scanTimeout, err := time.ParseDuration(opt.ScanTimeout)
-	if err != nil {
-		log.Fatal("timeout parse failed:", err.Error())
-	}
-
-	p, err := poller.NewContinuousPoller(scanTimeout, time.Second*3)
+	p, err := poller.NewContinuousPoller(opt.ScanTimeout.Duration(), time.Second*3)
 	if err != nil {
 		log.Fatal("poller create failed:", err.Error())
 	}
