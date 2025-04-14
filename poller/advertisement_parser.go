@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"time"
 )
 
 type sixBytes = [6]byte
@@ -16,15 +15,11 @@ type MACAddr interface {
 
 const expectedUUID string = "0000181a-0000-1000-8000-00805f9b34fb"
 
-var ErrMismatchUUID = fmt.Errorf("mismatch UUID")
-
-const scanRestartDelay = time.Second * 3
-
 // https://github.com/pvvx/ATC_MiThermometer?tab=readme-ov-file#custom-format-all-data-little-endian
 func parseCustomPVVX(expectedMAC [6]byte, advertisedUUID string, b []byte) (temp float64, humidity float64, voltage float64, err error) {
 	if advertisedUUID != expectedUUID {
-		return 0, 0, 0, fmt.Errorf("%w: expected %v != adverised %v",
-			ErrMismatchUUID, expectedUUID, advertisedUUID)
+		return 0, 0, 0, fmt.Errorf("mismatch UUID: expected %v != adverised %v",
+			expectedUUID, advertisedUUID)
 	}
 
 	if len(b) < 14 {

@@ -13,13 +13,14 @@ import (
 )
 
 type PollerContinuous struct {
-	adapter        *bluetooth.Adapter
-	devicesMutex   *sync.Mutex
-	devices        map[sixBytes]*collector.PollResult
-	scanTimeoutSec uint
+	adapter          *bluetooth.Adapter
+	devicesMutex     *sync.Mutex
+	devices          map[sixBytes]*collector.PollResult
+	scanTimeout      time.Duration
+	scanRestartDelay time.Duration
 }
 
-func NewContinuousPoller(scanTimeoutSec uint) (*PollerContinuous, error) {
+func NewContinuousPoller(scanTimeout time.Duration, scanRestartDelay time.Duration) (*PollerContinuous, error) {
 	var adapter = bluetooth.DefaultAdapter
 	err := adapter.Enable()
 	if err != nil {
@@ -28,7 +29,7 @@ func NewContinuousPoller(scanTimeoutSec uint) (*PollerContinuous, error) {
 
 	devices := make(map[sixBytes]*collector.PollResult)
 	var m sync.Mutex
-	return &PollerContinuous{adapter, &m, devices, scanTimeoutSec}, nil
+	return &PollerContinuous{adapter, &m, devices, scanTimeout, scanRestartDelay}, nil
 
 }
 
@@ -42,14 +43,13 @@ func (p *PollerContinuous) Scan() {
 	heartbeat := make(chan interface{})
 	for {
 		go func() {
-			period := time.Second * time.Duration(p.scanTimeoutSec)
-			ticker := time.NewTicker(period)
+			ticker := time.NewTicker(p.scanTimeout)
 			for {
 				select {
 				case <-heartbeat:
-					ticker.Reset(period)
+					ticker.Reset(p.scanTimeout)
 				case <-ticker.C:
-					log.Printf("no bluetooth message received in %v, restart adapter.Scan()", period)
+					log.Printf("no bluetooth message received in %v, restart adapter.Scan()", p.scanTimeout)
 					p.adapter.StopScan()
 					return
 				}
@@ -94,8 +94,8 @@ func (p *PollerContinuous) Scan() {
 		if err != nil {
 			log.Println("adapter.Scan() return error", err)
 		}
-		log.Println("scan stopped, restart in", scanRestartDelay)
-		time.Sleep(scanRestartDelay)
+		log.Println("scan stopped, restart in", p.scanRestartDelay)
+		time.Sleep(p.scanRestartDelay)
 	}
 }
 

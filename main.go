@@ -2,9 +2,9 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"net"
+	"time"
 
 	"lywsd03mmc-prom-expo/collector"
 	"lywsd03mmc-prom-expo/poller"
@@ -48,9 +48,9 @@ func (m MAC) BytesLE() [6]byte {
 }
 
 type Options struct {
-	ListenAddress  string `long:"listen-address" default:"127.0.0.1:8080" description:"The address to listen on for HTTP requests."`
-	ScanTimeoutSec uint   `long:"bt-scan-timeout" default:"31" description:"Bluetooth scan timeout in seconds."`
-	Devices        []MAC  `long:"dev" required:"true" description:"Bluetooth device MAC address to poll. Repeatable (e.g. AA:BB:CC:DD:EE:FF)"`
+	ListenAddress string `long:"listen-address" default:"127.0.0.1:8080" description:"The address to listen on for HTTP requests."`
+	ScanTimeout   string `long:"bt-scan-timeout" default:"31s" description:"Bluetooth scan timeout (e.g 31s, 1h, 8m)"`
+	Devices       []MAC  `long:"dev" required:"true" description:"Bluetooth device MAC address to poll. Repeatable (e.g. AA:BB:CC:DD:EE:FF)"`
 }
 
 var opt Options
@@ -62,9 +62,14 @@ func main() {
 		return
 	}
 
-	p, err := poller.NewContinuousPoller(opt.ScanTimeoutSec)
+	scanTimeout, err := time.ParseDuration(opt.ScanTimeout)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Fatal("timeout parse failed:", err.Error())
+	}
+
+	p, err := poller.NewContinuousPoller(scanTimeout, time.Second*3)
+	if err != nil {
+		log.Fatal("poller create failed:", err.Error())
 	}
 
 	for _, d := range opt.Devices {
@@ -82,6 +87,6 @@ func main() {
 
 	err = http.ListenAndServe(opt.ListenAddress, nil)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal("listen failed:", err.Error())
 	}
 }
