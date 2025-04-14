@@ -17,6 +17,9 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
+const SCAN_RESTART_DELAY = time.Second * 3
+const METRIC_PATH = "/metrics"
+
 type MAC net.HardwareAddr
 
 func (m *MAC) UnmarshalFlag(value string) error {
@@ -83,7 +86,7 @@ func main() {
 		return
 	}
 
-	p, err := poller.NewContinuousPoller(opt.ScanTimeout.Duration(), time.Second*3)
+	p, err := poller.NewContinuousPoller(opt.ScanTimeout.Duration(), SCAN_RESTART_DELAY)
 	if err != nil {
 		log.Fatal("poller create failed:", err.Error())
 	}
@@ -99,7 +102,7 @@ func main() {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(c)
 
-	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
+	http.Handle(METRIC_PATH, promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
 
 	err = http.ListenAndServe(opt.ListenAddress, nil)
 	if err != nil {
