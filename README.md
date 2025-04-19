@@ -12,7 +12,7 @@ Custom advertisement format
 `make build`
 
 ## Usage
- See all args `lywsd03mmc-prom-expo -h`  
+See all args `lywsd03mmc-prom-expo -h`  
 Minimal run, pass thermometers
 ```
 ./lywsd03mmc-prom-expo --dev AA:BB:CC:DD:EE:FF --dev 11:22:33:44:55:66
@@ -39,7 +39,7 @@ systemctl status lywsd03mmc-prom-expo
 ```
 
 ## Installation via docker
-Buld image
+Build image
 ```
 docker buildx build -t lywsd03mmc-prom-expo .
 ```
@@ -47,20 +47,20 @@ Debug run. Do not forget replace `--dev` to real devices
 ```
 docker run -it --rm --network=host --privileged \
 -v /var/run/dbus/:/var/run/dbus/:z lywsd03mmc-prom-expo \
---listen-address 127.0.0.1:8091 --bt-scan-timeout 31s \
+--listen-address 127.0.0.1:8081 --bt-scan-timeout 31s \
 --dev 00:11:22:33:44:55 --dev AA:BB:CC:DD:EE:FF
 ```
 
-
+Prod run
 ```
 docker run -d --restart=unless-stopped --network=host \
 --privileged -v /var/run/dbus/:/var/run/dbus/:z lywsd03mmc-prom-expo \
---listen-address 127.0.0.1:8091 --bt-scan-timeout 31s \
+--listen-address 127.0.0.1:8081 --bt-scan-timeout 31s \
 --dev 00:11:22:33:44:55 --dev AA:BB:CC:DD:EE:FF
 ```
 
 ## Example output 
-`curl http://127.0.0.1:8081/metrics`
+`curl http://127.0.0.1:8091/metrics`
 ```
 HELP promhttp_metric_handler_errors_total Total number of internal errors encountered by the promhttp metric handler.
 # TYPE promhttp_metric_handler_errors_total counter
