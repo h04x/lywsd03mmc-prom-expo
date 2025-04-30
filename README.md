@@ -43,7 +43,7 @@ Build image
 ```
 docker buildx build -t lywsd03mmc-prom-expo .
 ```
-Debug run. Do not forget replace `--dev` to real devices
+Debug run example
 ```
 docker run -it --rm --network=host --privileged \
 -v /var/run/dbus/:/var/run/dbus/:z lywsd03mmc-prom-expo \
@@ -51,7 +51,7 @@ docker run -it --rm --network=host --privileged \
 --dev 00:11:22:33:44:55 --dev AA:BB:CC:DD:EE:FF
 ```
 
-Prod run
+Prod run example
 ```
 docker run -d --restart=unless-stopped --network=host \
 --privileged -v /var/run/dbus/:/var/run/dbus/:z lywsd03mmc-prom-expo \

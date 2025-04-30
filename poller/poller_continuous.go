@@ -3,7 +3,6 @@ package poller
 import (
 	"log"
 	"maps"
-	//"slices"
 	"sync"
 	"time"
 

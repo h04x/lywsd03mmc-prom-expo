@@ -73,8 +73,8 @@ func (md MyDuration) Duration() time.Duration {
 
 type Options struct {
 	ListenAddress string     `long:"listen-address" default:"127.0.0.1:8080" description:"The address to listen on for HTTP requests."`
-	ScanTimeout   MyDuration `long:"bt-scan-timeout" default:"31s" description:"Bluetooth scan timeout (e.g 31s, 1h, 8m)"`
-	Devices       []MAC      `long:"dev" required:"true" description:"Bluetooth device MAC address to poll. Repeatable (e.g. AA:BB:CC:DD:EE:FF)"`
+	ScanTimeout   MyDuration `long:"bt-scan-timeout" default:"31s" description:"Bluetooth scan timeout (e.g 31s, 8m. 1h)"`
+	Devices       []MAC      `long:"dev" required:"true" description:"Thermometer MAC address. Repeatable (e.g. AA:BB:CC:DD:EE:FF)"`
 }
 
 var opt Options
