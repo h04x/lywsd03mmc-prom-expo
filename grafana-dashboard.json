@@ -222,7 +222,7 @@
             "refId": "A"
           }
         ],
-        "title": "$mac humidity outside %",
+        "title": "$mac humidity %",
         "type": "timeseries"
       },
       {
