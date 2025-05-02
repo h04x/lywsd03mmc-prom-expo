@@ -1,4 +1,4 @@
-FROM golang:alpine AS builder
+FROM golang:1.23-alpine AS builder
 WORKDIR /build
 COPY . .
 RUN go build -o lywsd03mmc-prom-expo main.go
